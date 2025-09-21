@@ -1,0 +1,404 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - AI Career Advisor{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <div class="welcome-section">
+        <h1>Welcome to Your Career Dashboard 👋</h1>
+        <p class="welcome-text">Get personalized career guidance powered by AI to navigate your professional journey.</p>
+    </div>
+
+    <div class="dashboard-stats">
+        <div class="stat-card">
+            <div class="stat-icon">🎯</div>
+            <div class="stat-content">
+                <h3 id="total-recommendations">0</h3>
+                <p>Career Matches</p>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">⚡</div>
+            <div class="stat-content">
+                <h3 id="skills-count">0</h3>
+                <p>Skills Tracked</p>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">📈</div>
+            <div class="stat-content">
+                <h3 id="progress-percentage">0%</h3>
+                <p>Overall Progress</p>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">🏆</div>
+            <div class="stat-content">
+                <h3 id="completed-milestones">0</h3>
+                <p>Milestones</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="dashboard-grid">
+        <div class="dashboard-card quick-profile">
+            <h3>📋 Quick Profile Setup</h3>
+            <div id="profile-status">
+                <p>Complete your profile to get personalized recommendations!</p>
+                <button onclick="window.location.href='/profile'" class="btn btn-primary">Complete Profile</button>
+            </div>
+        </div>
+
+        <div class="dashboard-card recent-recommendations">
+            <h3>🎯 Top Career Matches</h3>
+            <div id="recent-recommendations">
+                <div class="loading">Loading recommendations...</div>
+            </div>
+        </div>
+
+        <div class="dashboard-card skill-progress">
+            <h3>📊 Skill Development Progress</h3>
+            <canvas id="skillProgressChart" width="400" height="200"></canvas>
+        </div>
+
+        <div class="dashboard-card learning-roadmap">
+            <h3>🗺️ Next Learning Steps</h3>
+            <div id="next-steps">
+                <div class="loading">Loading roadmap...</div>
+            </div>
+        </div>
+
+        <div class="dashboard-card industry-trends">
+            <h3>📈 Industry Insights</h3>
+            <div class="trend-item">
+                <div class="trend-title">Artificial Intelligence & Machine Learning</div>
+                <div class="trend-growth">+25% growth</div>
+            </div>
+            <div class="trend-item">
+                <div class="trend-title">Cybersecurity</div>
+                <div class="trend-growth">+18% growth</div>
+            </div>
+            <div class="trend-item">
+                <div class="trend-title">Cloud Computing</div>
+                <div class="trend-growth">+22% growth</div>
+            </div>
+            <div class="trend-item">
+                <div class="trend-title">Data Science</div>
+                <div class="trend-growth">+20% growth</div>
+            </div>
+        </div>
+
+        <div class="dashboard-card recent-activity">
+            <h3>📅 Recent Activity</h3>
+            <div id="recent-activity">
+                <div class="activity-item">
+                    <div class="activity-icon">🆕</div>
+                    <div class="activity-text">Welcome! Start by completing your profile.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Student Selection Modal -->
+<div id="studentModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2>Select or Create Student Profile</h2>
+        <div class="student-selection">
+            <div class="create-student">
+                <h3>Create New Profile</h3>
+                <form id="createStudentForm">
+                    <input type="text" id="studentName" placeholder="Full Name" required>
+                    <input type="email" id="studentEmail" placeholder="Email Address" required>
+                    <select id="academicLevel" required>
+                        <option value="">Select Academic Level</option>
+                        <option value="High School">High School</option>
+                        <option value="Undergraduate">Undergraduate</option>
+                        <option value="Graduate">Graduate</option>
+                        <option value="PhD">PhD</option>
+                    </select>
+                    <input type="text" id="major" placeholder="Major/Field of Study">
+                    <input type="number" id="gpa" placeholder="GPA (optional)" step="0.01" min="0" max="4">
+                    <input type="number" id="graduationYear" placeholder="Graduation Year">
+                    <button type="submit" class="btn btn-primary">Create Profile</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Global variable for current student
+let currentStudentId = null;
+
+// Initialize dashboard
+$(document).ready(function() {
+    // Check if student profile exists
+    const studentId = localStorage.getItem('currentStudentId');
+    if (studentId) {
+        currentStudentId = studentId;
+        loadDashboardData();
+    } else {
+        showStudentModal();
+    }
+    
+    // Setup modal handlers
+    setupModalHandlers();
+});
+
+function showStudentModal() {
+    $('#studentModal').show();
+}
+
+function hideStudentModal() {
+    $('#studentModal').hide();
+}
+
+function setupModalHandlers() {
+    $('.close').click(function() {
+        hideStudentModal();
+    });
+    
+    $('#createStudentForm').submit(function(e) {
+        e.preventDefault();
+        createStudent();
+    });
+}
+
+async function createStudent() {
+    const formData = {
+        name: $('#studentName').val(),
+        email: $('#studentEmail').val(),
+        academic_level: $('#academicLevel').val(),
+        major: $('#major').val(),
+        gpa: $('#gpa').val() ? parseFloat($('#gpa').val()) : null,
+        graduation_year: $('#graduationYear').val() ? parseInt($('#graduationYear').val()) : null
+    };
+    
+    try {
+        const response = await fetch('/api/students', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(formData)
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            currentStudentId = data.id;
+            localStorage.setItem('currentStudentId', currentStudentId);
+            hideStudentModal();
+            loadDashboardData();
+            showNotification('Profile created successfully!', 'success');
+        } else {
+            const error = await response.json();
+            showNotification(error.error || 'Failed to create profile', 'error');
+        }
+    } catch (error) {
+        showNotification('Network error. Please try again.', 'error');
+    }
+}
+
+async function loadDashboardData() {
+    if (!currentStudentId) return;
+    
+    try {
+        // Load student profile
+        await loadStudentProfile();
+        
+        // Load recommendations
+        await loadRecentRecommendations();
+        
+        // Load progress data
+        await loadProgressData();
+        
+        // Load roadmap
+        await loadLearningRoadmap();
+        
+        // Update activity
+        updateRecentActivity();
+        
+    } catch (error) {
+        console.error('Error loading dashboard data:', error);
+        showNotification('Failed to load dashboard data', 'error');
+    }
+}
+
+async function loadStudentProfile() {
+    const response = await fetch(`/api/students/${currentStudentId}`);
+    if (response.ok) {
+        const student = await response.json();
+        
+        // Update profile status
+        const skillsCount = student.skills ? student.skills.length : 0;
+        const interestsCount = student.interests ? student.interests.length : 0;
+        
+        $('#skills-count').text(skillsCount);
+        
+        if (skillsCount > 0 && interestsCount > 0) {
+            $('#profile-status').html(`
+                <p>✅ Profile Complete - ${skillsCount} skills, ${interestsCount} interests</p>
+                <button onclick="window.location.href='/profile'" class="btn btn-secondary">Edit Profile</button>
+            `);
+        }
+    }
+}
+
+async function loadRecentRecommendations() {
+    try {
+        const response = await fetch(`/api/students/${currentStudentId}/recommendations`);
+        if (response.ok) {
+            const data = await response.json();
+            const recommendations = data.recommendations.slice(0, 3);
+            
+            $('#total-recommendations').text(recommendations.length);
+            
+            const html = recommendations.map(rec => `
+                <div class="recommendation-item">
+                    <div class="rec-title">${rec.career_path.title}</div>
+                    <div class="rec-match">${Math.round(rec.match_score * 100)}% match</div>
+                    <div class="rec-industry">${rec.career_path.industry}</div>
+                </div>
+            `).join('');
+            
+            $('#recent-recommendations').html(html);
+        } else {
+            $('#recent-recommendations').html('<p>Complete your profile to get recommendations!</p>');
+        }
+    } catch (error) {
+        $('#recent-recommendations').html('<p>Complete your profile to get recommendations!</p>');
+    }
+}
+
+async function loadProgressData() {
+    try {
+        const response = await fetch(`/api/students/${currentStudentId}/progress`);
+        if (response.ok) {
+            const data = await response.json();
+            const progress = data.progress || [];
+            
+            if (progress.length > 0) {
+                const avgProgress = progress.reduce((sum, p) => sum + p.progress_percentage, 0) / progress.length;
+                $('#progress-percentage').text(Math.round(avgProgress) + '%');
+                
+                const completedMilestones = progress.reduce((sum, p) => {
+                    return sum + (p.milestones ? p.milestones.filter(m => m.completed).length : 0);
+                }, 0);
+                $('#completed-milestones').text(completedMilestones);
+                
+                // Create skill progress chart
+                createSkillProgressChart(progress);
+            } else {
+                createSkillProgressChart([]);
+            }
+        }
+    } catch (error) {
+        console.error('Error loading progress data:', error);
+    }
+}
+
+async function loadLearningRoadmap() {
+    try {
+        const response = await fetch(`/api/students/${currentStudentId}/roadmap`);
+        if (response.ok) {
+            const data = await response.json();
+            const roadmap = data.roadmap;
+            
+            const immediateGoals = roadmap.immediate_goals.slice(0, 3);
+            const html = immediateGoals.map(goal => `
+                <div class="next-step-item">
+                    <div class="step-skill">${goal.skill}</div>
+                    <div class="step-time">${goal.estimated_time_weeks} weeks</div>
+                </div>
+            `).join('');
+            
+            $('#next-steps').html(html || '<p>Complete your profile to get a personalized roadmap!</p>');
+        } else {
+            $('#next-steps').html('<p>Complete your profile to get a personalized roadmap!</p>');
+        }
+    } catch (error) {
+        $('#next-steps').html('<p>Complete your profile to get a personalized roadmap!</p>');
+    }
+}
+
+function createSkillProgressChart(progressData) {
+    const ctx = document.getElementById('skillProgressChart').getContext('2d');
+    
+    // Destroy existing chart if it exists
+    if (window.skillChart) {
+        window.skillChart.destroy();
+    }
+    
+    const labels = progressData.slice(0, 5).map(p => p.skill);
+    const data = progressData.slice(0, 5).map(p => p.progress_percentage);
+    
+    window.skillChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Progress %',
+                data: data,
+                backgroundColor: '#4CAF50',
+                borderColor: '#45a049',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100
+                }
+            }
+        }
+    });
+}
+
+function updateRecentActivity() {
+    const activities = [
+        { icon: '🎯', text: 'Career recommendations updated' },
+        { icon: '📚', text: 'Learning roadmap generated' },
+        { icon: '📊', text: 'Progress tracking initialized' }
+    ];
+    
+    const html = activities.map(activity => `
+        <div class="activity-item">
+            <div class="activity-icon">${activity.icon}</div>
+            <div class="activity-text">${activity.text}</div>
+        </div>
+    `).join('');
+    
+    $('#recent-activity').html(html);
+}
+
+function showNotification(message, type) {
+    const notification = $(`
+        <div class="notification ${type}">
+            ${message}
+            <span class="notification-close">&times;</span>
+        </div>
+    `);
+    
+    $('body').append(notification);
+    
+    setTimeout(() => {
+        notification.fadeOut(() => notification.remove());
+    }, 5000);
+    
+    notification.find('.notification-close').click(() => {
+        notification.fadeOut(() => notification.remove());
+    });
+}
+</script>
+{% endblock %}

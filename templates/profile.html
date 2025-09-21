@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - AI Career Advisor{% endblock %}
+
+{% block content %}
+<div class="profile-container">
+    <h1>📋 Student Profile</h1>
+    
+    <div class="profile-section">
+        <h2>Personal Information</h2>
+        <div id="personal-info">
+            <div class="loading">Loading profile...</div>
+        </div>
+    </div>
+    
+    <div class="profile-section">
+        <h2>Skills</h2>
+        <div class="add-skill-form">
+            <input type="text" id="skillName" placeholder="Skill name (e.g., Python, JavaScript)">
+            <select id="skillCategory">
+                <option value="Technical">Technical</option>
+                <option value="Soft">Soft Skills</option>
+                <option value="Domain">Domain-specific</option>
+            </select>
+            <select id="skillProficiency">
+                <option value="1">1 - Beginner</option>
+                <option value="2">2 - Novice</option>
+                <option value="3">3 - Intermediate</option>
+                <option value="4">4 - Advanced</option>
+                <option value="5">5 - Expert</option>
+            </select>
+            <label>
+                <input type="checkbox" id="skillDesired"> Want to learn this skill
+            </label>
+            <button onclick="addSkill()" class="btn btn-primary">Add Skill</button>
+        </div>
+        
+        <div id="skills-list">
+            <div class="loading">Loading skills...</div>
+        </div>
+    </div>
+    
+    <div class="profile-section">
+        <h2>Interests</h2>
+        <div class="add-interest-form">
+            <input type="text" id="interestName" placeholder="Interest (e.g., Artificial Intelligence, Web Development)">
+            <select id="interestCategory">
+                <option value="Technology">Technology</option>
+                <option value="Business">Business</option>
+                <option value="Science">Science</option>
+                <option value="Arts">Arts</option>
+                <option value="Healthcare">Healthcare</option>
+                <option value="Education">Education</option>
+            </select>
+            <select id="interestStrength">
+                <option value="1">1 - Mild Interest</option>
+                <option value="2">2 - Some Interest</option>
+                <option value="3">3 - Moderate Interest</option>
+                <option value="4">4 - Strong Interest</option>
+                <option value="5">5 - Very Strong Interest</option>
+            </select>
+            <button onclick="addInterest()" class="btn btn-primary">Add Interest</button>
+        </div>
+        
+        <div id="interests-list">
+            <div class="loading">Loading interests...</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentStudent = null;
+
+$(document).ready(function() {
+    loadProfile();
+});
+
+async function loadProfile() {
+    const studentId = localStorage.getItem('currentStudentId');
+    if (!studentId) {
+        window.location.href = '/';
+        return;
+    }
+    
+    try {
+        const student = await CareerAdvisor.apiCall(`/api/students/${studentId}`);
+        currentStudent = student;
+        renderPersonalInfo(student);
+        renderSkills(student.skills || []);
+        renderInterests(student.interests || []);
+    } catch (error) {
+        CareerAdvisor.showNotification('Failed to load profile', 'error');
+        console.error('Profile load error:', error);
+    }
+}
+
+function renderPersonalInfo(student) {
+    const html = `
+        <div class="info-grid">
+            <div class="info-item">
+                <strong>Name:</strong> ${student.name}
+            </div>
+            <div class="info-item">
+                <strong>Email:</strong> ${student.email}
+            </div>
+            <div class="info-item">
+                <strong>Academic Level:</strong> ${student.academic_level}
+            </div>
+            ${student.major ? `
+                <div class="info-item">
+                    <strong>Major:</strong> ${student.major}
+                </div>
+            ` : ''}
+            ${student.gpa ? `
+                <div class="info-item">
+                    <strong>GPA:</strong> ${student.gpa}
+                </div>
+            ` : ''}
+            ${student.graduation_year ? `
+                <div class="info-item">
+                    <strong>Graduation Year:</strong> ${student.graduation_year}
+                </div>
+            ` : ''}
+        </div>
+    `;
+    document.getElementById('personal-info').innerHTML = html;
+}
+
+function renderSkills(skills) {
+    if (!skills || skills.length === 0) {
+        document.getElementById('skills-list').innerHTML = '<p>No skills added yet. Add your first skill above!</p>';
+        return;
+    }
+    
+    const html = skills.map(skill => `
+        <div class="skill-item">
+            <div class="skill-info">
+                <div class="skill-name">${skill.name}</div>
+                <div class="skill-category">${skill.category}</div>
+                ${skill.is_desired ? '<span class="desired-badge">Want to learn</span>' : ''}
+            </div>
+            <div class="skill-proficiency">
+                ${renderProficiencyDots(skill.proficiency)}
+                <span class="proficiency-text">Level ${skill.proficiency}</span>
+            </div>
+        </div>
+    `).join('');
+    
+    document.getElementById('skills-list').innerHTML = html;
+}
+
+function renderInterests(interests) {
+    if (!interests || interests.length === 0) {
+        document.getElementById('interests-list').innerHTML = '<p>No interests added yet. Add your first interest above!</p>';
+        return;
+    }
+    
+    const html = interests.map(interest => `
+        <div class="interest-item">
+            <div class="interest-info">
+                <div class="interest-name">${interest.name}</div>
+                <div class="interest-category">${interest.category}</div>
+            </div>
+            <div class="interest-strength">
+                ${renderStrengthDots(interest.strength)}
+                <span class="strength-text">Level ${interest.strength}</span>
+            </div>
+        </div>
+    `).join('');
+    
+    document.getElementById('interests-list').innerHTML = html;
+}
+
+function renderProficiencyDots(level) {
+    let html = '';
+    for (let i = 1; i <= 5; i++) {
+        const activeClass = i <= level ? 'active' : '';
+        html += `<span class="proficiency-dot ${activeClass}"></span>`;
+    }
+    return html;
+}
+
+function renderStrengthDots(level) {
+    let html = '';
+    for (let i = 1; i <= 5; i++) {
+        const activeClass = i <= level ? 'active' : '';
+        html += `<span class="strength-dot ${activeClass}"></span>`;
+    }
+    return html;
+}
+
+async function addSkill() {
+    const skillName = document.getElementById('skillName').value.trim();
+    const category = document.getElementById('skillCategory').value;
+    const proficiency = parseInt(document.getElementById('skillProficiency').value);
+    const isDesired = document.getElementById('skillDesired').checked;
+    
+    if (!skillName) {
+        CareerAdvisor.showNotification('Please enter a skill name', 'error');
+        return;
+    }
+    
+    const skillData = {
+        skill_name: skillName,
+        category: category,
+        proficiency_level: proficiency,
+        is_desired: isDesired
+    };
+    
+    try {
+        await CareerAdvisor.studentManager.addSkill(skillData);
+        CareerAdvisor.showNotification(`Skill "${skillName}" added successfully!`, 'success');
+        
+        // Clear form
+        document.getElementById('skillName').value = '';
+        document.getElementById('skillDesired').checked = false;
+        
+        // Reload profile
+        await loadProfile();
+    } catch (error) {
+        CareerAdvisor.showNotification('Failed to add skill', 'error');
+        console.error('Add skill error:', error);
+    }
+}
+
+async function addInterest() {
+    const interestName = document.getElementById('interestName').value.trim();
+    const category = document.getElementById('interestCategory').value;
+    const strength = parseInt(document.getElementById('interestStrength').value);
+    
+    if (!interestName) {
+        CareerAdvisor.showNotification('Please enter an interest', 'error');
+        return;
+    }
+    
+    const interestData = {
+        interest_name: interestName,
+        category: category,
+        strength: strength
+    };
+    
+    try {
+        await CareerAdvisor.studentManager.addInterest(interestData);
+        CareerAdvisor.showNotification(`Interest "${interestName}" added successfully!`, 'success');
+        
+        // Clear form
+        document.getElementById('interestName').value = '';
+        
+        // Reload profile
+        await loadProfile();
+    } catch (error) {
+        CareerAdvisor.showNotification('Failed to add interest', 'error');
+        console.error('Add interest error:', error);
+    }
+}
+</script>
+{% endblock %}

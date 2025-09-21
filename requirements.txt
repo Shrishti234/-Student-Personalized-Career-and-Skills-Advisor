@@ -1,0 +1,2 @@
+# Basic Flask setup - using system packages when possible
+Flask

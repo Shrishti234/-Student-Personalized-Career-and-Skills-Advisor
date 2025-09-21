@@ -1,0 +1,442 @@
+{% extends "base.html" %}
+
+{% block title %}Learning Roadmap - AI Career Advisor{% endblock %}
+
+{% block content %}
+<div class="roadmap-container">
+    <h1>🗺️ Your Learning Roadmap</h1>
+    <p class="page-description">Personalized learning path to achieve your career goals.</p>
+    
+    <div class="roadmap-actions">
+        <button class="btn btn-primary" onclick="refreshRoadmap()">🔄 Update Roadmap</button>
+        <button class="btn btn-secondary" onclick="exportRoadmap()">📥 Export Plan</button>
+    </div>
+    
+    <div class="roadmap-content" id="roadmap-content">
+        <div class="loading">Generating your personalized learning roadmap...</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    loadRoadmap();
+});
+
+async function loadRoadmap() {
+    const studentId = localStorage.getItem('currentStudentId');
+    if (!studentId) {
+        window.location.href = '/';
+        return;
+    }
+    
+    try {
+        const data = await CareerAdvisor.apiCall(`/api/students/${studentId}/roadmap`);
+        renderRoadmap(data.roadmap);
+    } catch (error) {
+        document.getElementById('roadmap-content').innerHTML = `
+            <div class="error-message">
+                <h3>Unable to generate roadmap</h3>
+                <p>Please complete your profile and get career recommendations first.</p>
+                <a href="/profile" class="btn btn-primary">Complete Profile</a>
+            </div>
+        `;
+        console.error('Roadmap load error:', error);
+    }
+}
+
+function renderRoadmap(roadmap) {
+    if (!roadmap) {
+        document.getElementById('roadmap-content').innerHTML = `
+            <div class="no-roadmap">
+                <h3>🎯 Ready to start your journey?</h3>
+                <p>Get career recommendations first to generate a personalized learning roadmap!</p>
+                <a href="/recommendations" class="btn btn-primary">View Recommendations</a>
+            </div>
+        `;
+        return;
+    }
+    
+    const sections = [
+        { key: 'immediate_goals', title: '🎯 Immediate Goals', subtitle: '0-3 months', color: '#ff6b6b' },
+        { key: 'short_term_goals', title: '📈 Short-term Goals', subtitle: '3-12 months', color: '#4ecdc4' },
+        { key: 'long_term_goals', title: '🚀 Long-term Goals', subtitle: '1+ years', color: '#45b7d1' }
+    ];
+    
+    let html = '<div class="roadmap-timeline">';
+    
+    sections.forEach((section, index) => {
+        const goals = roadmap[section.key] || [];
+        const totalWeeks = goals.reduce((sum, goal) => sum + (goal.estimated_time_weeks || 0), 0);
+        
+        html += `
+            <div class="timeline-section" data-section="${section.key}">
+                <div class="section-header" style="border-left-color: ${section.color}">
+                    <h2 style="color: ${section.color}">${section.title}</h2>
+                    <p class="section-subtitle">${section.subtitle}</p>
+                    <div class="section-stats">
+                        <span class="goal-count">${goals.length} goals</span>
+                        <span class="time-estimate">${totalWeeks} weeks total</span>
+                    </div>
+                </div>
+                
+                <div class="goals-container">
+                    ${goals.length > 0 ? goals.map((goal, goalIndex) => `
+                        <div class="goal-card">
+                            <div class="goal-header">
+                                <h3 class="goal-skill">${goal.skill}</h3>
+                                <span class="goal-time">${goal.estimated_time_weeks} weeks</span>
+                            </div>
+                            
+                            <div class="goal-progress-info">
+                                <div class="progress-levels">
+                                    <span class="current-level">Current: Level ${goal.current_level}</span>
+                                    <span class="arrow">→</span>
+                                    <span class="target-level">Target: Level ${goal.target_level}</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: ${(goal.current_level / goal.target_level) * 100}%"></div>
+                                </div>
+                            </div>
+                            
+                            ${goal.resources && goal.resources.length > 0 ? `
+                                <div class="goal-resources">
+                                    <h4>📚 Recommended Resources:</h4>
+                                    <div class="resources-list">
+                                        ${goal.resources.map(resource => `
+                                            <a href="${resource.url}" target="_blank" class="resource-item">
+                                                <div class="resource-info">
+                                                    <span class="resource-title">${resource.title}</span>
+                                                    <span class="resource-type">${resource.type}</span>
+                                                </div>
+                                                <div class="resource-meta">
+                                                    <span class="resource-difficulty">${resource.difficulty}</span>
+                                                    ${resource.duration_hours ? `<span class="resource-duration">${resource.duration_hours}h</span>` : ''}
+                                                </div>
+                                            </a>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                            
+                            <div class="goal-actions">
+                                <button class="btn btn-primary btn-small" onclick="startLearning('${goal.skill}')">
+                                    ▶️ Start Learning
+                                </button>
+                                <button class="btn btn-secondary btn-small" onclick="updateProgress('${goal.skill}')">
+                                    📊 Update Progress
+                                </button>
+                            </div>
+                        </div>
+                    `).join('') : `
+                        <div class="no-goals">
+                            <p>No specific goals identified for this timeframe.</p>
+                        </div>
+                    `}
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    document.getElementById('roadmap-content').innerHTML = html;
+}
+
+async function refreshRoadmap() {
+    document.getElementById('roadmap-content').innerHTML = '<div class="loading">Updating your roadmap...</div>';
+    await loadRoadmap();
+    CareerAdvisor.showNotification('Roadmap updated!', 'success');
+}
+
+function exportRoadmap() {
+    CareerAdvisor.showNotification('Export feature coming soon!', 'info');
+}
+
+function startLearning(skill) {
+    CareerAdvisor.showNotification(`Starting learning path for ${skill}!`, 'success');
+    // TODO: Implement learning path integration
+}
+
+function updateProgress(skill) {
+    // Simple progress update - could be enhanced with modal
+    const currentLevel = prompt(`What's your current level in ${skill}? (1-5)`);
+    if (currentLevel && currentLevel >= 1 && currentLevel <= 5) {
+        updateSkillProgress(skill, parseInt(currentLevel));
+    }
+}
+
+async function updateSkillProgress(skill, level) {
+    try {
+        const progressData = {
+            skill_name: skill,
+            current_proficiency: level
+        };
+        
+        await CareerAdvisor.studentManager.updateProgress(progressData);
+        CareerAdvisor.showNotification(`Progress updated for ${skill}!`, 'success');
+        
+        // Refresh roadmap to show updated progress
+        await loadRoadmap();
+    } catch (error) {
+        CareerAdvisor.showNotification('Failed to update progress', 'error');
+        console.error('Progress update error:', error);
+    }
+}
+</script>
+
+<style>
+.roadmap-container {
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.page-description {
+    text-align: center;
+    color: #666;
+    margin-bottom: 2rem;
+    font-size: 1.1rem;
+}
+
+.roadmap-actions {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.roadmap-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 3rem;
+}
+
+.timeline-section {
+    position: relative;
+}
+
+.section-header {
+    border-left: 5px solid;
+    padding-left: 1.5rem;
+    margin-bottom: 2rem;
+    background: white;
+    border-radius: 0 12px 12px 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    padding: 1.5rem;
+}
+
+.section-header h2 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.8rem;
+}
+
+.section-subtitle {
+    color: #666;
+    margin: 0 0 1rem 0;
+    font-size: 1.1rem;
+}
+
+.section-stats {
+    display: flex;
+    gap: 2rem;
+}
+
+.goal-count, .time-estimate {
+    background: #f8f9fa;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    color: #667eea;
+    font-weight: 600;
+}
+
+.goals-container {
+    display: grid;
+    gap: 2rem;
+    padding-left: 2rem;
+}
+
+.goal-card {
+    background: white;
+    border-radius: 16px;
+    padding: 2rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    border-left: 4px solid #667eea;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.goal-card:hover {
+    transform: translateX(4px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+}
+
+.goal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.goal-skill {
+    color: #333;
+    margin: 0;
+    font-size: 1.4rem;
+}
+
+.goal-time {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-weight: 600;
+}
+
+.goal-progress-info {
+    margin-bottom: 2rem;
+}
+
+.progress-levels {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.current-level {
+    color: #ff9800;
+    font-weight: 600;
+}
+
+.target-level {
+    color: #4CAF50;
+    font-weight: 600;
+}
+
+.arrow {
+    color: #667eea;
+    font-weight: bold;
+    font-size: 1.2rem;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 12px;
+    background: #f0f2ff;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    transition: width 0.3s ease;
+}
+
+.goal-resources {
+    margin-bottom: 2rem;
+}
+
+.goal-resources h4 {
+    color: #333;
+    margin-bottom: 1rem;
+}
+
+.resources-list {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.resource-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    text-decoration: none;
+    color: #333;
+    transition: background 0.3s ease;
+}
+
+.resource-item:hover {
+    background: #e9ecef;
+    color: #667eea;
+}
+
+.resource-title {
+    font-weight: 600;
+}
+
+.resource-type {
+    background: #667eea;
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    margin-left: 1rem;
+}
+
+.resource-meta {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.9rem;
+    color: #666;
+}
+
+.goal-actions {
+    display: flex;
+    gap: 1rem;
+}
+
+.btn-small {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+}
+
+.no-goals, .no-roadmap, .error-message {
+    text-align: center;
+    padding: 3rem;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.no-goals h3, .no-roadmap h3, .error-message h3 {
+    color: #333;
+    margin-bottom: 1rem;
+}
+
+.no-goals p, .no-roadmap p, .error-message p {
+    color: #666;
+    margin-bottom: 2rem;
+}
+
+@media (max-width: 768px) {
+    .section-stats {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .goal-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+    
+    .progress-levels {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    .goal-actions {
+        flex-direction: column;
+    }
+    
+    .roadmap-actions {
+        flex-direction: column;
+        align-items: center;
+    }
+}
+</style>
+{% endblock %}

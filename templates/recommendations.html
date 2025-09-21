@@ -1,0 +1,437 @@
+{% extends "base.html" %}
+
+{% block title %}Recommendations - AI Career Advisor{% endblock %}
+
+{% block content %}
+<div class="recommendations-container">
+    <h1>🎯 Career Recommendations</h1>
+    <p class="page-description">Discover personalized career paths based on your skills, interests, and goals.</p>
+    
+    <div class="recommendations-filters">
+        <button class="btn btn-primary" onclick="refreshRecommendations()">🔄 Refresh Recommendations</button>
+        <div class="filter-stats">
+            <span id="match-count">0</span> career matches found
+        </div>
+    </div>
+    
+    <div class="recommendations-grid" id="recommendations-list">
+        <div class="loading">Generating personalized recommendations...</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    loadRecommendations();
+});
+
+async function loadRecommendations() {
+    const studentId = localStorage.getItem('currentStudentId');
+    if (!studentId) {
+        window.location.href = '/';
+        return;
+    }
+    
+    try {
+        const data = await CareerAdvisor.apiCall(`/api/students/${studentId}/recommendations`);
+        const recommendations = data.recommendations || [];
+        
+        document.getElementById('match-count').textContent = recommendations.length;
+        renderRecommendations(recommendations);
+    } catch (error) {
+        document.getElementById('recommendations-list').innerHTML = `
+            <div class="error-message">
+                <h3>Unable to generate recommendations</h3>
+                <p>Please complete your profile with skills and interests to get personalized career recommendations.</p>
+                <a href="/profile" class="btn btn-primary">Complete Profile</a>
+            </div>
+        `;
+        console.error('Recommendations load error:', error);
+    }
+}
+
+function renderRecommendations(recommendations) {
+    if (!recommendations || recommendations.length === 0) {
+        document.getElementById('recommendations-list').innerHTML = `
+            <div class="no-recommendations">
+                <h3>🎯 Ready for recommendations?</h3>
+                <p>Add your skills and interests to get personalized career suggestions!</p>
+                <a href="/profile" class="btn btn-primary">Complete Profile</a>
+            </div>
+        `;
+        return;
+    }
+    
+    const html = recommendations.map((rec, index) => {
+        const career = rec.career_path;
+        const matchPercentage = Math.round(rec.match_score * 100);
+        const skillMatchPercentage = Math.round(rec.skill_match_score * 100);
+        
+        return `
+            <div class="recommendation-card" data-match="${rec.match_score}">
+                <div class="recommendation-header">
+                    <div class="career-title">
+                        <h3>${career.title}</h3>
+                        <span class="industry-tag">${career.industry}</span>
+                    </div>
+                    <div class="match-scores">
+                        <div class="match-score primary">${matchPercentage}% Overall Match</div>
+                        <div class="match-score secondary">${skillMatchPercentage}% Skill Match</div>
+                    </div>
+                </div>
+                
+                <div class="career-details">
+                    <p class="career-description">${career.description}</p>
+                    
+                    <div class="career-stats">
+                        ${career.average_salary ? `
+                            <div class="stat-item">
+                                <span class="stat-icon">💰</span>
+                                <span class="stat-label">Average Salary:</span>
+                                <span class="stat-value">$${career.average_salary.toLocaleString()}</span>
+                            </div>
+                        ` : ''}
+                        ${career.growth_rate ? `
+                            <div class="stat-item">
+                                <span class="stat-icon">📈</span>
+                                <span class="stat-label">Growth Rate:</span>
+                                <span class="stat-value">${career.growth_rate}% annually</span>
+                            </div>
+                        ` : ''}
+                        ${career.education_requirements ? `
+                            <div class="stat-item">
+                                <span class="stat-icon">🎓</span>
+                                <span class="stat-label">Education:</span>
+                                <span class="stat-value">${career.education_requirements}</span>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+                
+                <div class="recommendation-reasoning">
+                    <h4>🤔 Why this career fits you:</h4>
+                    <p>${rec.reasoning}</p>
+                </div>
+                
+                ${rec.skill_gaps && rec.skill_gaps.length > 0 ? `
+                    <div class="skill-gaps-section">
+                        <h4>🎯 Skills to develop:</h4>
+                        <div class="skill-gaps-grid">
+                            ${rec.skill_gaps.slice(0, 5).map(gap => `
+                                <div class="skill-gap-item">
+                                    <div class="gap-skill">${gap.skill}</div>
+                                    <div class="gap-level">
+                                        <span class="current-level">Current: ${gap.current_level}</span>
+                                        <span class="arrow">→</span>
+                                        <span class="target-level">Target: ${gap.target_level}</span>
+                                    </div>
+                                    <div class="gap-priority ${gap.gap > 2 ? 'high' : gap.gap > 1 ? 'medium' : 'low'}">
+                                        ${gap.gap > 2 ? 'High Priority' : gap.gap > 1 ? 'Medium Priority' : 'Low Priority'}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <button class="btn btn-secondary" onclick="viewLearningPath(${index})">
+                            📚 View Learning Path
+                        </button>
+                    </div>
+                ` : ''}
+                
+                <div class="recommendation-actions">
+                    <button class="btn btn-primary" onclick="exploreCareer(${career.id})">
+                        🔍 Learn More
+                    </button>
+                    <button class="btn btn-secondary" onclick="saveCareer(${career.id})">
+                        ❤️ Save Career
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    document.getElementById('recommendations-list').innerHTML = html;
+}
+
+async function refreshRecommendations() {
+    document.getElementById('recommendations-list').innerHTML = '<div class="loading">Updating recommendations...</div>';
+    await loadRecommendations();
+    CareerAdvisor.showNotification('Recommendations updated!', 'success');
+}
+
+function viewLearningPath(recommendationIndex) {
+    // Store the recommendation index and navigate to roadmap
+    localStorage.setItem('focusCareerIndex', recommendationIndex);
+    window.location.href = '/roadmap';
+}
+
+function exploreCareer(careerId) {
+    CareerAdvisor.showNotification('Career exploration feature coming soon!', 'info');
+    // TODO: Implement detailed career exploration
+}
+
+function saveCareer(careerId) {
+    // TODO: Implement career saving functionality
+    CareerAdvisor.showNotification('Career saved to your favorites!', 'success');
+}
+</script>
+
+<style>
+.recommendations-container {
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.page-description {
+    text-align: center;
+    color: #666;
+    margin-bottom: 2rem;
+    font-size: 1.1rem;
+}
+
+.recommendations-filters {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding: 1rem;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.filter-stats {
+    color: #667eea;
+    font-weight: 600;
+}
+
+.recommendation-card {
+    background: white;
+    border-radius: 16px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.recommendation-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+}
+
+.recommendation-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+}
+
+.career-title h3 {
+    margin: 0;
+    color: #333;
+    font-size: 1.5rem;
+}
+
+.industry-tag {
+    display: inline-block;
+    background: #f0f2ff;
+    color: #667eea;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin-top: 0.5rem;
+}
+
+.match-scores {
+    text-align: right;
+}
+
+.match-score {
+    display: block;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.match-score.primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    font-size: 1rem;
+}
+
+.match-score.secondary {
+    background: #f8f9fa;
+    color: #667eea;
+    font-size: 0.9rem;
+}
+
+.career-description {
+    color: #666;
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+}
+
+.career-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.stat-icon {
+    font-size: 1.2rem;
+}
+
+.stat-label {
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.stat-value {
+    color: #333;
+    font-weight: 600;
+    margin-left: auto;
+}
+
+.recommendation-reasoning {
+    background: #f0f2ff;
+    padding: 1.5rem;
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+}
+
+.recommendation-reasoning h4 {
+    color: #667eea;
+    margin-bottom: 1rem;
+}
+
+.skill-gaps-section {
+    border-top: 2px solid #f0f2ff;
+    padding-top: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.skill-gaps-section h4 {
+    color: #333;
+    margin-bottom: 1rem;
+}
+
+.skill-gaps-grid {
+    display: grid;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.skill-gap-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: #fff8f0;
+    border-radius: 8px;
+    border-left: 4px solid #ff9800;
+}
+
+.gap-skill {
+    font-weight: 600;
+    color: #333;
+}
+
+.gap-level {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    color: #666;
+}
+
+.arrow {
+    color: #ff9800;
+    font-weight: bold;
+}
+
+.gap-priority {
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.gap-priority.high {
+    background: #ffebee;
+    color: #c62828;
+}
+
+.gap-priority.medium {
+    background: #fff3e0;
+    color: #ef6c00;
+}
+
+.gap-priority.low {
+    background: #e8f5e8;
+    color: #2e7d32;
+}
+
+.recommendation-actions {
+    display: flex;
+    gap: 1rem;
+}
+
+.recommendation-actions .btn {
+    flex: 1;
+}
+
+.no-recommendations, .error-message {
+    text-align: center;
+    padding: 3rem;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.no-recommendations h3, .error-message h3 {
+    color: #333;
+    margin-bottom: 1rem;
+}
+
+.no-recommendations p, .error-message p {
+    color: #666;
+    margin-bottom: 2rem;
+}
+
+@media (max-width: 768px) {
+    .recommendations-filters {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .recommendation-header {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .match-scores {
+        text-align: left;
+    }
+    
+    .career-stats {
+        grid-template-columns: 1fr;
+    }
+    
+    .recommendation-actions {
+        flex-direction: column;
+    }
+}
+</style>
+{% endblock %}

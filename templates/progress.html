@@ -1,0 +1,623 @@
+{% extends "base.html" %}
+
+{% block title %}Progress Tracking - AI Career Advisor{% endblock %}
+
+{% block content %}
+<div class="progress-container">
+    <h1>📊 Progress Tracking</h1>
+    <p class="page-description">Monitor your skill development and learning milestones.</p>
+    
+    <div class="progress-overview">
+        <div class="overview-stats">
+            <div class="stat-card">
+                <div class="stat-icon">🎯</div>
+                <div class="stat-content">
+                    <h3 id="overall-progress">0%</h3>
+                    <p>Overall Progress</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📚</div>
+                <div class="stat-content">
+                    <h3 id="skills-in-progress">0</h3>
+                    <p>Skills in Progress</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">✅</div>
+                <div class="stat-content">
+                    <h3 id="completed-milestones">0</h3>
+                    <p>Milestones Achieved</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🔥</div>
+                <div class="stat-content">
+                    <h3 id="streak-days">0</h3>
+                    <p>Day Streak</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="progress-sections">
+        <div class="progress-section">
+            <h2>📈 Skill Progress Overview</h2>
+            <div class="chart-container">
+                <canvas id="skillProgressChart" width="800" height="400"></canvas>
+            </div>
+        </div>
+        
+        <div class="progress-section">
+            <h2>🎯 Individual Skill Tracking</h2>
+            <div class="skills-progress" id="skills-progress">
+                <div class="loading">Loading skill progress...</div>
+            </div>
+        </div>
+        
+        <div class="progress-section">
+            <h2>🏆 Recent Achievements</h2>
+            <div class="achievements-list" id="achievements-list">
+                <div class="loading">Loading achievements...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Progress Update Modal -->
+<div id="progressModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2>Update Skill Progress</h2>
+        <form id="progressUpdateForm">
+            <input type="hidden" id="updateSkillName">
+            <div class="form-group">
+                <label>Current Proficiency Level:</label>
+                <select id="updateCurrentLevel">
+                    <option value="1">1 - Beginner</option>
+                    <option value="2">2 - Novice</option>
+                    <option value="3">3 - Intermediate</option>
+                    <option value="4">4 - Advanced</option>
+                    <option value="5">5 - Expert</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Milestone Achieved:</label>
+                <input type="text" id="milestoneText" placeholder="e.g., Completed Python basics course">
+            </div>
+            <div class="form-group">
+                <label>Resources Completed:</label>
+                <input type="text" id="completedResource" placeholder="e.g., Python for Beginners">
+            </div>
+            <button type="submit" class="btn btn-primary">Update Progress</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentProgressData = [];
+
+$(document).ready(function() {
+    loadProgressData();
+    setupModalHandlers();
+});
+
+function setupModalHandlers() {
+    $('.close').click(function() {
+        $('#progressModal').hide();
+    });
+    
+    $('#progressUpdateForm').submit(function(e) {
+        e.preventDefault();
+        updateSkillProgress();
+    });
+}
+
+async function loadProgressData() {
+    const studentId = localStorage.getItem('currentStudentId');
+    if (!studentId) {
+        window.location.href = '/';
+        return;
+    }
+    
+    try {
+        const data = await CareerAdvisor.apiCall(`/api/students/${studentId}/progress`);
+        currentProgressData = data.progress || [];
+        
+        renderProgressOverview(currentProgressData);
+        renderSkillsProgress(currentProgressData);
+        renderProgressChart(currentProgressData);
+        renderAchievements(currentProgressData);
+    } catch (error) {
+        console.error('Progress load error:', error);
+        
+        // Show empty state if no progress data
+        document.getElementById('skills-progress').innerHTML = `
+            <div class="no-progress">
+                <h3>🚀 Ready to start tracking?</h3>
+                <p>Begin your learning journey and track your progress!</p>
+                <a href="/roadmap" class="btn btn-primary">View Learning Roadmap</a>
+            </div>
+        `;
+    }
+}
+
+function renderProgressOverview(progressData) {
+    if (!progressData || progressData.length === 0) {
+        document.getElementById('overall-progress').textContent = '0%';
+        document.getElementById('skills-in-progress').textContent = '0';
+        document.getElementById('completed-milestones').textContent = '0';
+        document.getElementById('streak-days').textContent = '0';
+        return;
+    }
+    
+    // Calculate overall progress
+    const totalProgress = progressData.reduce((sum, item) => sum + item.progress_percentage, 0);
+    const avgProgress = Math.round(totalProgress / progressData.length);
+    
+    // Count skills in progress (not at 100%)
+    const skillsInProgress = progressData.filter(item => item.progress_percentage < 100).length;
+    
+    // Count completed milestones
+    const completedMilestones = progressData.reduce((sum, item) => {
+        const milestones = item.milestones || [];
+        return sum + milestones.filter(m => m.completed).length;
+    }, 0);
+    
+    // Simple streak calculation (placeholder)
+    const streakDays = Math.min(progressData.length * 2, 30); // Simplified streak
+    
+    document.getElementById('overall-progress').textContent = avgProgress + '%';
+    document.getElementById('skills-in-progress').textContent = skillsInProgress;
+    document.getElementById('completed-milestones').textContent = completedMilestones;
+    document.getElementById('streak-days').textContent = streakDays;
+}
+
+function renderSkillsProgress(progressData) {
+    if (!progressData || progressData.length === 0) {
+        document.getElementById('skills-progress').innerHTML = `
+            <div class="no-progress">
+                <h3>🎯 Start Your Learning Journey</h3>
+                <p>Add skills to your profile and begin tracking your progress!</p>
+                <a href="/profile" class="btn btn-primary">Add Skills</a>
+            </div>
+        `;
+        return;
+    }
+    
+    const html = progressData.map(item => {
+        const progressPercentage = Math.round(item.progress_percentage);
+        const milestones = item.milestones || [];
+        const resourcesCompleted = item.resources_completed || [];
+        
+        return `
+            <div class="skill-progress-card">
+                <div class="skill-header">
+                    <h3>${item.skill}</h3>
+                    <div class="skill-levels">
+                        <span class="current-level">Level ${item.current_proficiency}</span>
+                        <span class="target-level">/ ${item.target_proficiency}</span>
+                    </div>
+                </div>
+                
+                <div class="progress-visualization">
+                    <div class="progress-bar-large">
+                        <div class="progress-fill-large" style="width: ${progressPercentage}%"></div>
+                    </div>
+                    <span class="progress-percentage">${progressPercentage}%</span>
+                </div>
+                
+                ${milestones.length > 0 ? `
+                    <div class="milestones-section">
+                        <h4>🏆 Recent Milestones:</h4>
+                        <div class="milestones-list">
+                            ${milestones.slice(0, 3).map(milestone => `
+                                <div class="milestone-item ${milestone.completed ? 'completed' : ''}">
+                                    ${milestone.completed ? '✅' : '⏳'} ${milestone.title}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+                
+                ${resourcesCompleted.length > 0 ? `
+                    <div class="resources-section">
+                        <h4>📚 Resources Completed:</h4>
+                        <div class="resources-list">
+                            ${resourcesCompleted.slice(0, 2).map(resource => `
+                                <div class="resource-completed">
+                                    📖 ${resource.title || resource}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+                
+                <div class="skill-actions">
+                    <button class="btn btn-primary btn-small" onclick="openProgressModal('${item.skill}', ${item.current_proficiency})">
+                        📊 Update Progress
+                    </button>
+                    <button class="btn btn-secondary btn-small" onclick="viewLearningResources('${item.skill}')">
+                        📚 Find Resources
+                    </button>
+                </div>
+                
+                <div class="last-updated">
+                    Last updated: ${CareerAdvisor.formatTimeAgo(item.updated_at)}
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    document.getElementById('skills-progress').innerHTML = html;
+}
+
+function renderProgressChart(progressData) {
+    if (!progressData || progressData.length === 0) {
+        return;
+    }
+    
+    const ctx = document.getElementById('skillProgressChart').getContext('2d');
+    
+    // Destroy existing chart if it exists
+    if (window.progressChart) {
+        window.progressChart.destroy();
+    }
+    
+    const chartData = progressData.slice(0, 8).map(item => ({
+        label: item.skill,
+        value: item.progress_percentage
+    }));
+    
+    window.progressChart = CareerAdvisor.createProgressChart('skillProgressChart', chartData, {
+        label: 'Progress %',
+        backgroundColor: '#667eea',
+        borderColor: '#5a6fd8',
+        maxValue: 100,
+        showLegend: false,
+        chartOptions: {
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Skill Development Progress'
+                }
+            }
+        }
+    });
+}
+
+function renderAchievements(progressData) {
+    const achievements = [];
+    
+    // Generate achievements from progress data
+    progressData.forEach(item => {
+        if (item.progress_percentage === 100) {
+            achievements.push({
+                type: 'skill_mastery',
+                title: `${item.skill} Mastery`,
+                description: `Reached target proficiency in ${item.skill}`,
+                date: item.updated_at,
+                icon: '🏆'
+            });
+        } else if (item.progress_percentage >= 75) {
+            achievements.push({
+                type: 'skill_progress',
+                title: `${item.skill} Progress`,
+                description: `75% progress toward ${item.skill} proficiency`,
+                date: item.updated_at,
+                icon: '⭐'
+            });
+        }
+        
+        // Add milestone achievements
+        const milestones = item.milestones || [];
+        milestones.filter(m => m.completed).forEach(milestone => {
+            achievements.push({
+                type: 'milestone',
+                title: milestone.title,
+                description: `Milestone achieved in ${item.skill}`,
+                date: item.updated_at,
+                icon: '✅'
+            });
+        });
+    });
+    
+    // Sort by date (most recent first)
+    achievements.sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    if (achievements.length === 0) {
+        document.getElementById('achievements-list').innerHTML = `
+            <div class="no-achievements">
+                <p>🎯 Keep learning to unlock achievements!</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const html = achievements.slice(0, 5).map(achievement => `
+        <div class="achievement-item">
+            <div class="achievement-icon">${achievement.icon}</div>
+            <div class="achievement-content">
+                <h4>${achievement.title}</h4>
+                <p>${achievement.description}</p>
+                <span class="achievement-date">${CareerAdvisor.formatTimeAgo(achievement.date)}</span>
+            </div>
+        </div>
+    `).join('');
+    
+    document.getElementById('achievements-list').innerHTML = html;
+}
+
+function openProgressModal(skillName, currentLevel) {
+    document.getElementById('updateSkillName').value = skillName;
+    document.getElementById('updateCurrentLevel').value = currentLevel;
+    document.getElementById('milestoneText').value = '';
+    document.getElementById('completedResource').value = '';
+    document.querySelector('#progressModal h2').textContent = `Update Progress: ${skillName}`;
+    
+    $('#progressModal').show();
+}
+
+async function updateSkillProgress() {
+    const skillName = document.getElementById('updateSkillName').value;
+    const currentLevel = parseInt(document.getElementById('updateCurrentLevel').value);
+    const milestoneText = document.getElementById('milestoneText').value.trim();
+    const completedResource = document.getElementById('completedResource').value.trim();
+    
+    const progressData = {
+        skill_name: skillName,
+        current_proficiency: currentLevel
+    };
+    
+    // Add milestone if provided
+    if (milestoneText) {
+        progressData.milestones = [{
+            title: milestoneText,
+            completed: true,
+            date: new Date().toISOString()
+        }];
+    }
+    
+    // Add completed resource if provided
+    if (completedResource) {
+        progressData.resources_completed = [completedResource];
+    }
+    
+    try {
+        await CareerAdvisor.studentManager.updateProgress(progressData);
+        CareerAdvisor.showNotification(`Progress updated for ${skillName}!`, 'success');
+        
+        $('#progressModal').hide();
+        await loadProgressData(); // Refresh data
+    } catch (error) {
+        CareerAdvisor.showNotification('Failed to update progress', 'error');
+        console.error('Progress update error:', error);
+    }
+}
+
+function viewLearningResources(skillName) {
+    CareerAdvisor.showNotification(`Finding resources for ${skillName}...`, 'info');
+    // TODO: Implement resource finding functionality
+}
+</script>
+
+<style>
+.progress-container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.progress-overview {
+    margin-bottom: 3rem;
+}
+
+.overview-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.progress-sections {
+    display: grid;
+    gap: 3rem;
+}
+
+.progress-section {
+    background: white;
+    padding: 2rem;
+    border-radius: 16px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.progress-section h2 {
+    color: #333;
+    margin-bottom: 2rem;
+    font-size: 1.5rem;
+}
+
+.chart-container {
+    position: relative;
+    height: 400px;
+}
+
+.skills-progress {
+    display: grid;
+    gap: 2rem;
+}
+
+.skill-progress-card {
+    background: #f8f9fa;
+    padding: 2rem;
+    border-radius: 12px;
+    border-left: 4px solid #667eea;
+}
+
+.skill-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.skill-header h3 {
+    margin: 0;
+    color: #333;
+}
+
+.skill-levels {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.current-level {
+    color: #667eea;
+}
+
+.target-level {
+    color: #666;
+}
+
+.progress-visualization {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.progress-bar-large {
+    flex: 1;
+    height: 20px;
+    background: #e9ecef;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.progress-fill-large {
+    height: 100%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    transition: width 0.3s ease;
+}
+
+.progress-percentage {
+    font-weight: 600;
+    color: #667eea;
+    font-size: 1.2rem;
+}
+
+.milestones-section, .resources-section {
+    margin-bottom: 1.5rem;
+}
+
+.milestones-section h4, .resources-section h4 {
+    color: #333;
+    margin-bottom: 1rem;
+    font-size: 1rem;
+}
+
+.milestone-item {
+    padding: 0.5rem 1rem;
+    background: white;
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.milestone-item.completed {
+    color: #28a745;
+}
+
+.resource-completed {
+    padding: 0.5rem 1rem;
+    background: white;
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    color: #667eea;
+}
+
+.skill-actions {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.last-updated {
+    font-size: 0.8rem;
+    color: #666;
+    text-align: right;
+}
+
+.achievements-list {
+    display: grid;
+    gap: 1rem;
+}
+
+.achievement-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.achievement-icon {
+    font-size: 2rem;
+    width: 3rem;
+    text-align: center;
+}
+
+.achievement-content h4 {
+    margin: 0 0 0.5rem 0;
+    color: #333;
+}
+
+.achievement-content p {
+    margin: 0 0 0.5rem 0;
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.achievement-date {
+    font-size: 0.8rem;
+    color: #999;
+}
+
+.no-progress, .no-achievements {
+    text-align: center;
+    padding: 3rem;
+    background: #f8f9fa;
+    border-radius: 12px;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: #333;
+}
+
+@media (max-width: 768px) {
+    .skill-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    .skill-actions {
+        flex-direction: column;
+    }
+    
+    .chart-container {
+        height: 300px;
+    }
+}
+</style>
+{% endblock %}
